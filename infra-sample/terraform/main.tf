@@ -39,8 +39,10 @@ resource "aws_subnet" "public" {
   map_public_ip_on_launch = true
 
   tags = merge(local.common_tags, {
-    Name = "${local.name_prefix}-pub-${tonumber(each.key) + 1}"
-    Tier = "public"
+    Name                                        = "${local.name_prefix}-pub-${tonumber(each.key) + 1}"
+    Tier                                        = "public"
+    "kubernetes.io/role/elb"                    = "1"
+    "kubernetes.io/cluster/${local.name_prefix}" = "shared"
   })
 }
 
@@ -55,8 +57,26 @@ resource "aws_subnet" "private" {
   availability_zone = local.azs[tonumber(each.key)]
 
   tags = merge(local.common_tags, {
-    Name = "${local.name_prefix}-pri-${tonumber(each.key) + 1}"
-    Tier = "private"
+    Name                                           = "${local.name_prefix}-pri-${tonumber(each.key) + 1}"
+    Tier                                           = "private"
+    "kubernetes.io/role/internal-elb"              = "1"
+    "kubernetes.io/cluster/${local.name_prefix}"   = "shared"
+  })
+}
+
+resource "aws_subnet" "database" {
+  for_each = {
+    for idx, cidr in var.database_subnet_cidrs :
+    idx => cidr
+  }
+
+  vpc_id            = aws_vpc.main.id
+  cidr_block        = each.value
+  availability_zone = local.azs[tonumber(each.key)]
+
+  tags = merge(local.common_tags, {
+    Name = "${local.name_prefix}-db-${tonumber(each.key) + 1}"
+    Tier = "database"
   })
 }
 
@@ -125,6 +145,23 @@ resource "aws_route_table_association" "private" {
   route_table_id = aws_route_table.private[each.key].id
 }
 
+resource "aws_route_table" "database" {
+  for_each = aws_subnet.database
+
+  vpc_id = aws_vpc.main.id
+
+  tags = merge(local.common_tags, {
+    Name = "${local.name_prefix}-database-rt-${tonumber(each.key) + 1}"
+  })
+}
+
+resource "aws_route_table_association" "database" {
+  for_each = aws_subnet.database
+
+  subnet_id      = each.value.id
+  route_table_id = aws_route_table.database[each.key].id
+}
+
 output "vpc_id" {
   value = aws_vpc.main.id
 }
@@ -135,4 +172,8 @@ output "public_subnet_ids" {
 
 output "private_subnet_ids" {
   value = [for subnet in aws_subnet.private : subnet.id]
+}
+
+output "database_subnet_ids" {
+  value = [for subnet in aws_subnet.database : subnet.id]
 }

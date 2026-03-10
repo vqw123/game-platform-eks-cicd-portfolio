@@ -23,6 +23,8 @@ configs:
       g, <GITHUB_ORG>:platform-admin, role:admin
 
 server:
+  nodeSelector:
+    tier: admin
   ingress:
     enabled: true
     ingressClassName: alb
@@ -41,9 +43,5 @@ controller:
     tier: admin
 
 repoServer:
-  nodeSelector:
-    tier: admin
-
-server:
   nodeSelector:
     tier: admin
