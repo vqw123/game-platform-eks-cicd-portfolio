@@ -1,0 +1,49 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: sample-backend
+  namespace: sample
+  labels:
+    app: sample-backend
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: sample-backend
+  template:
+    metadata:
+      labels:
+        app: sample-backend
+    spec:
+      nodeSelector:
+        tier: backend
+      containers:
+        - name: sample-backend
+          image: <ECR_IMAGE_URI>:<IMAGE_TAG>
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 3000
+          env:
+            - name: NODE_ENV
+              value: "production"
+            - name: PORT
+              value: "3000"
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 3000
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 3000
+            initialDelaySeconds: 20
+            periodSeconds: 20
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "128Mi"
+            limits:
+              cpu: "500m"
+              memory: "512Mi"

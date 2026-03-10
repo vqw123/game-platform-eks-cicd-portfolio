@@ -1,0 +1,49 @@
+global:
+  domain: <ARGOCD_DOMAIN>
+
+configs:
+  cm:
+    exec.enabled: "true"
+    server.rbac.log.enforce.enable: "true"
+    dex.config: |
+      connectors:
+        - type: github
+          id: github
+          name: GitHub
+          config:
+            clientID: <GITHUB_CLIENT_ID>
+            clientSecret: <GITHUB_CLIENT_SECRET>
+            redirectURI: https://<ARGOCD_DOMAIN>/api/dex/callback
+            orgs:
+              - name: <GITHUB_ORG>
+
+  rbac:
+    policy.default: role:readonly
+    policy.csv: |
+      g, <GITHUB_ORG>:platform-admin, role:admin
+
+server:
+  ingress:
+    enabled: true
+    ingressClassName: alb
+    hostname: <ARGOCD_DOMAIN>
+    annotations:
+      alb.ingress.kubernetes.io/backend-protocol: HTTPS
+      alb.ingress.kubernetes.io/listen-ports: '[{"HTTP":80},{"HTTPS":443}]'
+      alb.ingress.kubernetes.io/ssl-redirect: "443"
+      alb.ingress.kubernetes.io/scheme: internet-facing
+      alb.ingress.kubernetes.io/target-type: ip
+      alb.ingress.kubernetes.io/certificate-arn: <ACM_CERTIFICATE_ARN>
+    tls: true
+
+controller:
+  nodeSelector:
+    tier: admin
+
+repoServer:
+  nodeSelector:
+    tier: admin
+
+server:
+  nodeSelector:
+    tier: admin

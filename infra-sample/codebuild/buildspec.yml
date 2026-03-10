@@ -1,0 +1,47 @@
+version: 0.2
+
+env:
+  variables:
+    AWS_REGION: <AWS_REGION>
+    AWS_ACCOUNT_ID: <AWS_ACCOUNT_ID>
+    ECR_REPOSITORY: <ECR_REPOSITORY_NAME>
+    IMAGE_TAG: latest
+    MANIFEST_REPOSITORY_URL: <MANIFEST_REPOSITORY_URL>
+    MANIFEST_BRANCH: main
+    MANIFEST_PATH: dev/sample/backend/deployment.yaml
+
+phases:
+  pre_build:
+    commands:
+      - echo "Logging in to Amazon ECR..."
+      - aws --version
+      - REPOSITORY_URI=${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${ECR_REPOSITORY}
+      - COMMIT_HASH=$(echo $CODEBUILD_RESOLVED_SOURCE_VERSION | cut -c 1-7)
+      - IMAGE_TAG=${COMMIT_HASH}
+      - aws ecr get-login-password --region ${AWS_REGION} | docker login --username AWS --password-stdin ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com
+
+  build:
+    commands:
+      - echo "Build started on $(date)"
+      - docker build -t ${ECR_REPOSITORY}:${IMAGE_TAG} .
+      - docker tag ${ECR_REPOSITORY}:${IMAGE_TAG} ${REPOSITORY_URI}:${IMAGE_TAG}
+
+  post_build:
+    commands:
+      - echo "Pushing the Docker image..."
+      - docker push ${REPOSITORY_URI}:${IMAGE_TAG}
+
+      - echo "Updating manifest repository..."
+      - git clone ${MANIFEST_REPOSITORY_URL} manifest-repo
+      - cd manifest-repo
+      - git checkout ${MANIFEST_BRANCH}
+      - sed -i "s#image: .*#image: ${REPOSITORY_URI}:${IMAGE_TAG}#g" ${MANIFEST_PATH}
+      - git config user.name "codebuild-bot"
+      - git config user.email "codebuild-bot@example.com"
+      - git add ${MANIFEST_PATH}
+      - git commit -m "chore: update image tag to ${IMAGE_TAG}" || echo "No changes to commit"
+      - git push origin ${MANIFEST_BRANCH}
+
+artifacts:
+  files:
+    - '**/*'
